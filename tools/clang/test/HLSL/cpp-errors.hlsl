@@ -251,9 +251,6 @@ void vla(int size) {
   return n[0];
 }
 
-enum MyEnum  { MyEnum_MyVal1, MyEnum_MyVal2 }; // expected-error {{enum is unsupported in HLSL}} expected-warning {{declaration does not declare anything}}
-enum class MyEnumWithClass { MyEnumWithClass_MyVal1, MyEnumWithClass_MyVal2 }; // expected-error {{enum is unsupported in HLSL}} expected-warning {{declaration does not declare anything}}
-
 float4 fn_with_semantic() : SV_Target0{
   return 0;
 }
@@ -440,7 +437,7 @@ my_label: local_i = 1; // expected-error {{label is unsupported in HLSL}}
   case 1 + 2:
     local_i = 3;
     break;
-  case local_i: // expected-error {{expression is not an integral constant expression}} expected-note {{read of non-const variable 'local_i' is not allowed in a constant expression}}
+  case local_i: // expected-error {{case value is not a constant expression}} expected-note {{read of non-const variable 'local_i' is not allowed in a constant expression}}
     break;
   case 10 ... 12: // expected-error {{case range is unsupported in HLSL}}
     break;
