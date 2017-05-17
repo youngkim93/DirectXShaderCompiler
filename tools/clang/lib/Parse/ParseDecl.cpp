@@ -4401,17 +4401,6 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
 void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
                                 const ParsedTemplateInfo &TemplateInfo,
                                 AccessSpecifier AS, DeclSpecContext DSC) {
-  /*
-  // HLSL Change Starts
-  if (getLangOpts().HLSL) {
-    Diag(Tok, diag::err_hlsl_unsupported_construct) << "enum";
-
-    // Skip the rest of this declarator, up until the comma or semicolon.
-    SkipUntil(tok::comma, StopAtSemi);
-    return;
-  }
-  // HLSL Change Ends
-  */
   // Parse the tag portion of this.
   if (Tok.is(tok::code_completion)) {
     // Code completion for an enum name.
@@ -4425,7 +4414,6 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
   MaybeParseCXX11Attributes(attrs);
   MaybeParseMicrosoftDeclSpecs(attrs);
   MaybeParseHLSLAttributes(attrs);
-  //assert(!getLangOpts().HLSL); // HLSL Change: in lieu of MaybeParseHLSLAttributes - enums not allowed
 
   SourceLocation ScopedEnumKWLoc;
   bool IsScopedUsingClassTag = false;
@@ -4810,7 +4798,6 @@ void Parser::ParseEnumBody(SourceLocation StartLoc, Decl *EnumDecl) {
       ParseCXX11Attributes(attrs);
     }
     MaybeParseHLSLAttributes(attrs);
-    //assert(!getLangOpts().HLSL); // HLSL Change: in lieu of MaybeParseHLSLAttributes - enums not allowed
 
     SourceLocation EqualLoc;
     ExprResult AssignedVal;
