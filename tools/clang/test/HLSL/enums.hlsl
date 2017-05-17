@@ -19,11 +19,11 @@ enum class VertexClass {
   ONEC,
   TWOC,
   THREEC,
-  FOURC,
+  FOURC = 4,
 };
 
 enum VertexBool : bool {
-  ZEROB,
+  ZEROB = true,
 };
 
 enum VertexInt : int {
@@ -79,7 +79,7 @@ enum VertexMin16Float : min16float {                        /* expected-error {{
   ZEROMIN16F,
 };
 
-enum VertexMin10Float : min10float {                        /* expected-error {{non-integral type 'min16float' is an invalid underlying type}} */
+enum VertexMin10Float : min10float {                        /* expected-error {{non-integral type 'min10float' is an invalid underlying type}} expected-warning {{min10float is promoted to min16float}} */
   ZEROMIN10F,
 };
 
@@ -98,7 +98,7 @@ int getValueFromVertex(Vertex v) {                          /* expected-note {{c
   }
 }
 
-int getValueFromInt(int i) {
+int getValueFromInt(int i) {                                /* expected-note {{candidate function not viable: no known conversion from 'VertexClass' to 'int' for 1st argument}} */
   switch (i) {
     case 0:
       return 0;
@@ -112,11 +112,11 @@ int getValueFromInt(int i) {
 }
 
 int4 main() : SV_Target {
-    int v0 = getValueFromInt(ZERO); //
-    int v1 = getValueFromInt(VertexClass::ONEC); // TODO: WRONG
-    int v2 = getValueFromInt(TWOI); //
-    int v3 = getValueFromInt(THREEU); //
-    int v4 = getValueFromInt(FOUR64); //
+    int v0 = getValueFromInt(ZERO);
+    int v1 = getValueFromInt(VertexClass::ONEC); /* expected-error {{no matching function for call to 'getValueFromInt'}} */
+    int v2 = getValueFromInt(TWOI);
+    int v3 = getValueFromInt(THREEU);
+    int v4 = getValueFromInt(FOUR64);
 
     int n0 = getValueFromVertex(ZERO);
     int n1 = getValueFromVertex(VertexClass::ONEC); /* expected-error {{no matching function for call to 'getValueFromVertex'}} */
@@ -134,8 +134,14 @@ int4 main() : SV_Target {
 
     Vertex unary0 = Vertex::ZERO;
     VertexClass unary1 = VertexClass::ZEROC;
-    unary0++;
-    --unary1;
+    unary0++;                                       /* expected-error {{cannot increment expression of enum type 'Vertex'}} */
+    unary0--;                                       /* expected-error {{cannot decrement expression of enum type 'Vertex'}} */
+    ++unary0;                                       /* expected-error {{cannot increment expression of enum type 'Vertex'}} */
+    --unary0;                                       /* expected-error {{cannot decrement expression of enum type 'Vertex'}} */
+    unary1++;                                       /* expected-error {{numeric type expected}} */
+    unary1--;                                       /* expected-error {{numeric type expected}} */
+    ++unary1;                                       /* expected-error {{numeric type expected}} */
+    --unary1;                                       /* expected-error {{numeric type expected}} */
 
     Vertex castV = 1;                    /* expected-error {{cannot initialize a variable of type 'Vertex' with an rvalue of type 'literal int'}} */
     VertexInt castI = 10;                /* expected-error {{cannot initialize a variable of type 'VertexInt' with an rvalue of type 'literal int'}} */
@@ -143,25 +149,35 @@ int4 main() : SV_Target {
     VertexUInt castU = 34;               /* expected-error {{cannot initialize a variable of type 'VertexUInt' with an rvalue of type 'literal int'}} */
     Vertex64 cast64 = 4037;              /* expected-error {{cannot initialize a variable of type 'Vertex64' with an rvalue of type 'literal int'}} */
 
+    Vertex vertex = Vertex::ZERO;
+    VertexClass vertexClass = VertexClass::FOURC;
+    int i0 = vertex;
+    int i1 = Vertex::ZERO;
+    int i2 = vertexClass;                 /* expected-error {{cannot initialize a variable of type 'int' with an lvalue of type 'VertexClass'}} */
+    int i3 = VertexClass::FOURC;          /* expected-error {{cannot initialize a variable of type 'int' with an rvalue of type 'VertexClass'}} */
+    float f0 = vertex;
+    float f1 = Vertex::ZERO;
+    float f2 = vertexClass;               /* expected-error {{cannot initialize a variable of type 'float' with an lvalue of type 'VertexClass'}} */
+    float f3 = VertexClass::FOURC;        /* expected-error {{cannot initialize a variable of type 'float' with an rvalue of type 'VertexClass'}} */
 
-    int unaryD = THREE++;                /* expected-error {{expression is not assignable}} */
+    int unaryD = THREE++;                /* expected-error {{cannot increment expression of enum type 'Vertex'}} */
     int unaryC = --VertexClass::FOURC;   /* expected-error {{expression is not assignable}} */
-    int unaryI = ++TWOI;                 /* expected-error {{expression is not assignable}} */
-    uint unaryU = ZEROU--;               /* expected-error {{expression is not assignable}} */
-    int unary64 = ++THREE64;             /* expected-error {{expression is not assignable}} */
+    int unaryI = ++TWOI;                 /* expected-error {{cannot increment expression of enum type 'VertexInt'}} */
+    uint unaryU = ZEROU--;               /* expected-error {{cannot decrement expression of enum type 'VertexUInt'}} */
+    int unary64 = ++THREE64;             /* expected-error {{cannot increment expression of enum type 'Vertex64'}} */
 
 
     int Iadd = Vertex::THREE - 48;
     int IaddI = VertexInt::ZEROI + 3;
-    int IaddC = VertexClass::ONEC + 10; // WRONG
+    int IaddC = VertexClass::ONEC + 10; /* expected-error {{numeric type expected}} */
     int IaddU = VertexUInt::TWOU + 15;
     int Iadd64 = Vertex64::THREE64 - 67;
 
     float Fadd = Vertex::ONE + 1.5f;
     float FaddI = VertexInt::TWOI + 3.41f;
-    float FaddC = VertexClass::THREEC - 256.0f; // WRONG
+    float FaddC = VertexClass::THREEC - 256.0f; /* expected-error {{numeric type expected}} */
     float FaddU = VertexUInt::FOURU + 283.48f;
     float Fadd64 = Vertex64::ZERO64  - 8471.0f;
-    
+
     return 1;
 }
