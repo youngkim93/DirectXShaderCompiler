@@ -151,6 +151,8 @@ public:
   LPCSTR  Name;       // Name for lookups and diagnostics.
   LPCSTR  EntryPoint; // Entry point function name.
   LPCSTR  Target;     // Target profile.
+  std::vector<LPCSTR>  Options;    // Compiler Options.
+  std::vector<LPCSTR>  Optimizers;     // Optimizer Passes.
   LPCSTR  Text;       // HLSL Shader Text.
 };
 

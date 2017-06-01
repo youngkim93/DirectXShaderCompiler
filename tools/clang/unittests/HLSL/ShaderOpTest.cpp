@@ -22,6 +22,11 @@
 #include "dxc/Support/Global.h"     // OutputDebugBytes
 #include "dxc/Support/Unicode.h"    // IsStarMatchUTF16
 #include "dxc/Support/dxcapi.use.h" // DxcDllSupport
+#include "dxc/Support/FileIOHelper.h" // AbstractMemoryStream
+#include "dxc/HLSL/DxilContainer.h" // GetDxilProgramHeader
+#include "llvm/Bitcode/ReaderWriter.h" // ParseBitcodeFile
+#include "llvm/IR/LLVMContext.h"    // LLVMContext
+#include "llvm/Support/ErrorOr.h"   // ErrorOr
 #include "WexTestClass.h"           // TAEF
 #include "HLSLTestUtils.h"          // LogCommentFmt
 
@@ -30,6 +35,8 @@
 #include <intsafe.h>
 #include <strsafe.h>
 #include <xmllite.h>
+#include <regex>
+#include <algorithm>
 #pragma comment(lib, "xmllite.lib")
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -644,13 +651,23 @@ void ShaderOpTest::CreateShaders() {
       CA2W nameW(S.Name, CP_UTF8);
       CA2W entryPointW(S.EntryPoint, CP_UTF8);
       CA2W targetW(S.Target, CP_UTF8);
+      
+      std::vector<LPCWSTR> argsW;
+      std::vector<std::wstring> optionsCA2W;
+      for (LPCSTR option : S.Options) {
+        optionsCA2W.push_back(CA2W(option, CP_UTF8).m_psz);
+      }
+      for (const std::wstring &wstr : optionsCA2W) {
+        argsW.push_back(wstr.data());
+      }
+
       HRESULT resultCode;
       CHECK_HR(m_pDxcSupport->CreateInstance(CLSID_DxcLibrary, &pLibrary));
       CHECK_HR(pLibrary->CreateBlobWithEncodingFromPinned(
           (LPBYTE)pText, (UINT32)strlen(pText), CP_UTF8, &pTextBlob));
       CHECK_HR(m_pDxcSupport->CreateInstance(CLSID_DxcCompiler, &pCompiler));
       CHECK_HR(pCompiler->Compile(pTextBlob, nameW, entryPointW, targetW,
-                                  nullptr, 0, nullptr, 0, nullptr, &pResult));
+                                  argsW.data(), argsW.size(), nullptr, 0, nullptr, &pResult));
       CHECK_HR(pResult->GetStatus(&resultCode));
       if (FAILED(resultCode)) {
         CComPtr<IDxcBlobEncoding> errors;
@@ -661,6 +678,55 @@ void ShaderOpTest::CreateShaders() {
       }
       CHECK_HR(resultCode);
       CHECK_HR(pResult->GetResult((IDxcBlob **)&pCode));
+
+      // Run Optimizer if required
+      if (!S.Optimizers.empty()) {
+          CComPtr<IDxcOptimizer> pOptimizer;
+          CHECK_HR(m_pDxcSupport->CreateInstance(CLSID_DxcOptimizer, &pOptimizer));
+          
+          // Get llvm bitcode from the compiled result
+          const hlsl::DxilContainerHeader *container = hlsl::IsDxilContainerLike(pCode->GetBufferPointer(), pCode->GetBufferSize());
+          VERIFY_IS_NOT_NULL(container);
+          const hlsl::DxilProgramHeader *programHeader = hlsl::GetDxilProgramHeader(container, hlsl::DxilFourCC::DFCC_DXIL);
+          VERIFY_IS_NOT_NULL(programHeader);
+          const char *pBitcode = hlsl::GetDxilBitcodeData(programHeader);
+          size_t bitcodeSize = hlsl::GetDxilBitcodeSize(programHeader);
+          CComPtr<IDxcBlobEncoding> pBitcodeEncoding;
+          CHECK_HR(pLibrary->CreateBlobWithEncodingFromPinned((unsigned char *)(pBitcode), bitcodeSize, CP_UTF8, &pBitcodeEncoding));
+          
+          CComPtr<IDxcBlob> pModuleBlob;
+          CHECK_HR(pLibrary->CreateBlobFromBlob(pBitcodeEncoding, 0, pBitcodeEncoding->GetBufferSize(), &pModuleBlob));
+
+          // Running Optimizer
+          CComPtr<IMalloc> pOutputModuleMalloc;
+          CComPtr<hlsl::AbstractMemoryStream> pOutputModuleStream;
+          CHECK_HR(CoGetMalloc(1, &pOutputModuleMalloc));
+          CreateMemoryStream(pOutputModuleMalloc, &pOutputModuleStream);
+          CComPtr<IDxcBlob> pOutputModuleBlob; // llvm module after running optimizer 
+          CHECK_HR(pOutputModuleStream->QueryInterface(&pOutputModuleBlob));
+          CComPtr<IDxcBlobEncoding> pOutputText;
+          CHECK_HR(pOptimizer->RunOptimizer(pModuleBlob, nullptr, 0, &pOutputModuleBlob, &pOutputText));
+
+          // Create dxil container using dxilassmebler
+          CComPtr<IMalloc> pContainerMalloc;
+          CComPtr<hlsl::AbstractMemoryStream> pContainerOutputStream;
+          CHECK_HR(CoGetMalloc(1, &pContainerMalloc));
+          CreateMemoryStream(pContainerMalloc, &pContainerOutputStream);
+
+          std::unique_ptr<llvm::MemoryBuffer> pBitcodeBuf(
+              llvm::MemoryBuffer::getMemBuffer(llvm::StringRef((const char *)pOutputModuleBlob->GetBufferPointer(), pOutputModuleBlob->GetBufferSize()), "",
+                  false));
+          llvm::LLVMContext llvmContext;
+          llvm::ErrorOr<std::unique_ptr<llvm::Module>> pModule(llvm::parseBitcodeFile(
+              pBitcodeBuf->getMemBufferRef(), llvmContext));
+          hlsl::DxilModule &dxilModule = pModule->get()->GetOrCreateDxilModule();
+          hlsl::SerializeDxilContainerForModule(&dxilModule, pOutputModuleStream, pContainerOutputStream, hlsl::SerializeDxilFlags::None);
+
+          CComPtr<IDxcBlob> pFinalBlob;
+          CHECK_HR(pContainerOutputStream->QueryInterface(&pFinalBlob));
+          *((IDxcBlob**)&pCode) = pFinalBlob.Detach();
+      }
+
     } else {
       CComPtr<ID3DBlob> pError;
       hr = D3DCompile(pText, strlen(pText), S.Name, nullptr, nullptr,
@@ -1926,6 +1992,38 @@ void ShaderOpParser::ParseShader(IXmlReader *pReader, ShaderOpShader *pShader) {
   CHECK_HR(ReadAttrStr(pReader, L"Name", &pShader->Name));
   CHECK_HR(ReadAttrStr(pReader, L"EntryPoint", &pShader->EntryPoint));
   CHECK_HR(ReadAttrStr(pReader, L"Target", &pShader->Target));
+  
+  LPCSTR Options, Optimizers;
+  CHECK_HR(ReadAttrStr(pReader, L"Options", &Options));
+  CHECK_HR(ReadAttrStr(pReader, L"Optimizers", &Optimizers));
+
+  // Convert string to vectors
+  if (Options) {
+    std::string OptionString = std::regex_replace(Options, std::regex("^ +| +$|( ) +"), "$1");
+    size_t cur = 0;
+    while (cur != std::string::npos) {
+      size_t next = OptionString.find_first_of(' ', cur);
+      if (next != cur) {
+        pShader->Options.emplace_back(
+            m_pStrings->insert(OptionString.substr(cur, next).data()));
+      }
+      cur = next == std::string::npos ? next : next + 1;
+    }
+  }
+
+  if (Optimizers) {
+    std::string OptimizerString = std::regex_replace(Optimizers, std::regex("^ +| +$|( ) +"), "$1");
+    size_t cur = 0;
+    while (cur != std::string::npos) {
+      size_t next = OptimizerString.find_first_of(' ', cur);
+      if (next != cur) {
+        pShader->Optimizers.emplace_back(
+            m_pStrings->insert(OptimizerString.substr(cur, next).data()));
+      }
+      cur = next == std::string::npos ? next : next + 1;
+    }
+  }
+
   ReadElementContentStr(pReader, &pShader->Text);
   bool hasText = pShader->Text && *pShader->Text;
   if (hasText) {
