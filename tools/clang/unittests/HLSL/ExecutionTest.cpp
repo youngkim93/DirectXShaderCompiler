@@ -165,7 +165,8 @@ static void SavePixelsToFile(LPCVOID pPixels, DXGI_FORMAT format, UINT32 m_width
     }
   } Vals[] = {
     // Add more pixel format mappings as needed.
-    { DXGI_FORMAT_R8G8B8A8_UNORM, GUID_WICPixelFormat32bppRGBA, 4 }
+    { DXGI_FORMAT_R8G8B8A8_UNORM, GUID_WICPixelFormat32bppRGBA, 4 },
+    { DXGI_FORMAT_R32G32B32A32_FLOAT, GUID_WICPixelFormat128bppRGBAFloat, 4 },
   };
   PF *pFormat = std::find(Vals, Vals + _countof(Vals), format);
 
@@ -506,7 +507,6 @@ bool IsValidWarpDllVersion(unsigned int minBuildNumber) {
     return false;
 }
 
-
 class ExecutionTest {
 public:
   // By default, ignore these tests, which require a recent build to run properly.
@@ -527,6 +527,7 @@ public:
   TEST_METHOD(WaveIntrinsicsTest);
   TEST_METHOD(WaveIntrinsicsInPSTest);
   TEST_METHOD(PartialDerivTest);
+  TEST_METHOD(BarycentricsTest);
 
   // TODO: Change the priority to 0 once there is a driver that fixes the issue with WaveActive operations
   BEGIN_TEST_METHOD(WaveIntrinsicsActiveIntTest)
@@ -2399,6 +2400,102 @@ TEST_F(ExecutionTest, PartialDerivTest) {
                    (CompareFloatULP(CenterDDYCoarse, -255.875f, ulpTolerance) ||
                    CompareFloatULP(CenterDDYCoarse, -511.75f, ulpTolerance)));
   }
+}
+
+TEST_F(ExecutionTest, BarycentricsTest) {
+    WEX::TestExecution::SetVerifyOutput verifySettings(WEX::TestExecution::VerifyOutputSettings::LogOnlyFailures);
+    CComPtr<IStream> pStream;
+    ReadHlslDataIntoNewStream(L"ShaderOpArith.xml", &pStream);
+
+    CComPtr<ID3D12Device> pDevice;
+    if (!CreateDevice(&pDevice))
+        return;
+
+    std::shared_ptr<ShaderOpTestResult> test = RunShaderOpTest(pDevice, m_support, pStream, "Barycentrics", nullptr);
+    MappedData data;
+    D3D12_RESOURCE_DESC &D = test->ShaderOp->GetResourceByName("RTarget")->Desc;
+    UINT width = (UINT64)D.Width;
+    UINT height = (UINT64)D.Height;
+    UINT pixelSize = GetByteSizeForFormat(D.Format) / 4;
+
+    test->Test->GetReadBackData("RTarget", &data);
+    const float *pPixels = (float *)data.data();
+
+    const float ClearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
+
+    // Check the pixels that does not contain clear colors
+    for (UINT j = 0; j < height; ++j) {
+        for (UINT i = 0; i < width; ++i) {
+            UINT index = i + j * width;
+            UINT offset = index * pixelSize;
+            float red = pPixels[offset];
+            float green = pPixels[offset + 1];
+            float blue = pPixels[offset + 2];
+            float alpha = pPixels[offset + 3];
+            if (red != ClearColor[0] || green != ClearColor[1] || blue != ClearColor[2] || alpha != ClearColor[3]) {
+                LogCommentFmt(L"color at %u, %u : %6f %6f %6f", i, j, red, green, blue);
+            }
+        }
+    }
+
+    //SavePixelsToFile(pPixels, DXGI_FORMAT_R32G32B32A32_FLOAT, 320, 200, L"barycentric.bmp");
+    //int ulpTolerance = 2;
+    // Centroid is where the barycentric weight of a point is (1/3, 1/3, 1/3).
+    // In a triangle of verticies (0,1), (-1,-1), (1,-1) the centroid is at
+    // (0, -1/3), which is at the center of the view port with height one third above the bottom.
+
+    // pixel at centroid
+    UINT CentroidIndex = (UINT64) width * height * 2 / 3 - width / 2;
+    UINT CentroidOffset = CentroidIndex * pixelSize;
+    float CenterRed = pPixels[CentroidOffset];
+    float CenterGreen = pPixels[CentroidOffset + 1];
+    float CenterBlue = pPixels[CentroidOffset + 2];
+   /* 
+    VERIFY_IS_TRUE(CompareFloatULP(CenterRed, 0.3333333f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(CenterGreen, 0.3333333f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(CenterBlue, 0.3333333f, ulpTolerance));
+    */
+
+
+    // top mid corner
+    UINT Vertex0Index = (UINT64) width / 2;
+    UINT Vertex0Offset = Vertex0Index * pixelSize;
+    float Vertex0Red = pPixels[Vertex0Offset];
+    float Vertex0Green = pPixels[Vertex0Offset + 1];
+    float Vertex0Blue = pPixels[Vertex0Offset + 2];
+    /*
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex0Red, 1.0f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex0Green, 0.0f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex0Blue, 0.0f, ulpTolerance));
+   */
+    // bottom left corner
+    UINT Vertex1Index = (UINT64) (width - 1) * height;
+    UINT Vertex1Offset = Vertex1Index * pixelSize;
+    float Vertex1Red = pPixels[Vertex1Offset];
+    float Vertex1Green = pPixels[Vertex1Offset + 1];
+    float Vertex1Blue = pPixels[Vertex1Offset + 2];
+    /*
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex1Red, 0.0f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex1Green, 1.0f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex1Blue, 0.0f, ulpTolerance));
+    */
+    // bottom right corner
+    UINT Vertex2Index = (UINT64) width * height - 1;
+    UINT Vertex2Offset = Vertex2Index * pixelSize;
+    float Vertex2Red = pPixels[Vertex2Offset];
+    float Vertex2Green = pPixels[Vertex2Offset + 1];
+    float Vertex2Blue = pPixels[Vertex2Offset + 2];
+    /*
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex2Red, 0.0f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex2Green, 0.0f, ulpTolerance));
+    VERIFY_IS_TRUE(CompareFloatULP(Vertex2Blue, 1.0f, ulpTolerance));
+    */
+
+    LogCommentFmt(L"center %6f, %6f, %6f\n top: %6f, %6f, %6f\n left: %6f, "
+                  L"%6f, %6f\n right %6f, %6f, %6f\n",
+                  CenterRed, CenterGreen, CenterBlue, Vertex0Red, Vertex0Green,
+                  Vertex0Blue, Vertex1Red, Vertex1Green, Vertex1Blue,
+                  Vertex2Red, Vertex2Green, Vertex2Blue);
 }
 
 // Resource structure for data-driven tests.
