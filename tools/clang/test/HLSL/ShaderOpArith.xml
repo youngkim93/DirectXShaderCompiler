@@ -440,12 +440,12 @@
   <ShaderOp Name="Barycentrics" PS="PS" VS="VS">
     <RootSignature>RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)</RootSignature>
 
-    <Resource Name="VBuffer" Dimension="BUFFER" Width="1024" Flags="ALLOW_UNORDERED_ACCESS" InitialResourceState="COPY_DEST" Init="FromBytes">
+    <Resource Name="VBuffer" Dimension="BUFFER" Width="1024" Flags="ALLOW_UNORDERED_ACCESS" InitialResourceState="COPY_DEST" Init="FromBytes" ReadBack="true">
       { {   0.0f,  1.0f , 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
       { {   1.0f, -1.0f , 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
       { {  -1.0f, -1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
     </Resource>
-    <Resource Name="RTarget" Dimension="TEXTURE2D" Width="320" Height="200" Format="R32G32B32A32_FLOAT" Flags="ALLOW_RENDER_TARGET" InitialResourceState="COPY_DEST" ReadBack="true" />
+    <Resource Name="RTarget" Dimension="TEXTURE2D" Width="5120" Height="9600" Format="R32G32B32A32_FLOAT" Flags="ALLOW_RENDER_TARGET" InitialResourceState="COPY_DEST" ReadBack="true" />
 
     <DescriptorHeap Name="RtvHeap" NumDescriptors="1" Type="RTV">
       <Descriptor Name="RTarget" Kind="RTV"/>
@@ -464,11 +464,9 @@
       float4 position : SV_POSITION;
       float4 color : COLOR;
     };
-    PSInput main(float3 position : POSITION, float4 color : COLOR) {
+    PSInput main(float4 position : POSITION, float4 color : COLOR) {
       PSInput result;
-      float ratio = 320.0 / 200.0;
-      result.position = float4(position.x, position.y, position.z, 1);
-      result.position.y *= ratio;
+      result.position = position;
       result.color = color;
       return result;
     }
@@ -480,18 +478,14 @@
       float4 position : SV_POSITION;
       float4 color : COLOR;
     };
-
     float4 main(PSInput input) : SV_TARGET {
       return input.color;
     }
-    /*
-    float4 main(PSInput input
-      float4 color0 = GetAttributeAtVertex(input.color, 0);
-      float4 color1 = GetAttributeAtVertex(input.color, 1);
-      float4 color2 = GetAttributeAtVertex(input.color, 2);
-      return 
+  /* 
+    float4 main(PSInput input, float3 bary : SV_Barycentrics) : SV_TARGET {
+      return float4(bary, 1);
+    }
     */
-    
     ]]>
     </Shader>
   </ShaderOp>
