@@ -164,7 +164,8 @@ static void SavePixelsToFile(LPCVOID pPixels, DXGI_FORMAT format, UINT32 m_width
     }
   } Vals[] = {
     // Add more pixel format mappings as needed.
-    { DXGI_FORMAT_R8G8B8A8_UNORM, GUID_WICPixelFormat32bppRGBA, 4 }
+    { DXGI_FORMAT_R8G8B8A8_UNORM, GUID_WICPixelFormat32bppRGBA, 4 },
+    { DXGI_FORMAT_R32G32B32A32_FLOAT, GUID_WICPixelFormat128bppRGBAFloat, 16 },
   };
   PF *pFormat = std::find(Vals, Vals + _countof(Vals), format);
 
@@ -495,6 +496,7 @@ public:
   TEST_METHOD(WaveIntrinsicsTest);
   TEST_METHOD(WaveIntrinsicsInPSTest);
   TEST_METHOD(PartialDerivTest);
+  TEST_METHOD(BarycentricsTest);
 
   // TODO: Change the priority to 0 once there is a driver that fixes the issue with WaveActive operations
   BEGIN_TEST_METHOD(WaveIntrinsicsActiveIntTest)
@@ -2371,6 +2373,85 @@ TEST_F(ExecutionTest, PartialDerivTest) {
                    (CompareFloatULP(CenterDDYCoarse, -255.875f, ulpTolerance) ||
                    CompareFloatULP(CenterDDYCoarse, -511.75f, ulpTolerance)));
   }
+}
+
+TEST_F(ExecutionTest, BarycentricsTest) {
+    WEX::TestExecution::SetVerifyOutput verifySettings(WEX::TestExecution::VerifyOutputSettings::LogOnlyFailures);
+    CComPtr<IStream> pStream;
+    ReadHlslDataIntoNewStream(L"ShaderOpArith.xml", &pStream);
+
+    CComPtr<ID3D12Device> pDevice;
+    if (!CreateDevice(&pDevice))
+        return;
+
+    std::shared_ptr<ShaderOpTestResult> test = RunShaderOpTest(pDevice, m_support, pStream, "Barycentrics", nullptr);
+    MappedData data;
+    D3D12_RESOURCE_DESC &D = test->ShaderOp->GetResourceByName("RTarget")->Desc;
+    UINT width = (UINT64)D.Width;
+    UINT height = (UINT64)D.Height;
+    UINT pixelSize = GetByteSizeForFormat(D.Format);
+
+    test->Test->GetReadBackData("RTarget", &data);
+    //const uint8_t *pPixels = (uint8_t *)data.data();
+    const float *pPixels = (float *)data.data();
+    //const float ClearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
+    /*
+    // Check the pixels that does not contain clear colors
+    for (UINT j = 0; j < height; ++j) {
+        unsigned numWidth = 0;
+        for (UINT i = 0; i < width; ++i) {
+            UINT index = i + j * width;
+            UINT offset = index * pixelSize;
+            float red = pPixels[offset];
+            float green = pPixels[offset + 1];
+            float blue = pPixels[offset + 2];
+            float alpha = pPixels[offset + 3];
+            if (red != ClearColor[0] || green != ClearColor[1] || blue != ClearColor[2] || alpha != ClearColor[3]) {
+                //LogCommentFmt(L"color at %u, %u : %6f %6f %6f", i, j, red, green, blue);
+                numWidth++;
+            }
+        }
+        LogCommentFmt(L"number of pixels on height %u with color assigned: %u", j, numWidth);
+    }
+    */
+    // Get the vertex of barycentric coordinate using VBuffer
+    MappedData triangleData;
+    test->Test->GetReadBackData("VBuffer", &triangleData);
+    const float *pTriangleData = (float*)triangleData.data();
+    // get the size of the input data
+    unsigned triangleVertexSizeInFloat = 0;
+    for (auto element : test->ShaderOp->InputElements)
+        triangleVertexSizeInFloat += GetByteSizeForFormat(element.Format) / 4;
+
+    XMFLOAT2 p0(pTriangleData[0], pTriangleData[1]);
+    XMFLOAT2 p1(pTriangleData[triangleVertexSizeInFloat], pTriangleData[triangleVertexSizeInFloat + 1]);
+    XMFLOAT2 p2(pTriangleData[triangleVertexSizeInFloat * 2], pTriangleData[triangleVertexSizeInFloat + 1]);
+
+    XMFLOAT3 barycentricWeights[4] = {
+        XMFLOAT3(0.3333f, 0.3333f, 0.3333f),
+        XMFLOAT3(0.5f, 0.25f, 0.25f),
+        XMFLOAT3(0.25f, 0.5f, 0.25f),
+        XMFLOAT3(0.25f, 0.25f, 0.50f)
+    };
+
+    float tolerance = 0.001f;
+    for (unsigned i = 0; i < sizeof(barycentricWeights) / sizeof(XMFLOAT3); ++i) {
+        float w0 = barycentricWeights[i].x;
+        float w1 = barycentricWeights[i].y;
+        float w2 = barycentricWeights[i].z;
+        float x1 = w0 * p0.x + w1 * p1.x + w2 * p2.x;
+        float y1 = w0 * p0.y + w1 * p1.y + w2 * p2.y;
+        // map from x1 y1 to rtv pixels
+        int pixelX = (x1 + 1) * (width-1) / 2;
+        int pixelY = (1 - y1) * (height-1) / 2;
+        int offset = pixelSize * (pixelX + pixelY * width) / sizeof(pPixels[0]);
+        //LogCommentFmt(L"location  %u %u, value %u, %u, %u", pixelX, pixelY, pPixels[offset], pPixels[offset + 1], pPixels[offset + 2]);
+        LogCommentFmt(L"location  %u %u, value %f, %f, %f", pixelX, pixelY, pPixels[offset], pPixels[offset + 1], pPixels[offset + 2]);
+        VERIFY_IS_TRUE(CompareFloatEpsilon(pPixels[offset], w0, tolerance));
+        VERIFY_IS_TRUE(CompareFloatEpsilon(pPixels[offset + 1], w1, tolerance));
+        VERIFY_IS_TRUE(CompareFloatEpsilon(pPixels[offset + 2], w2, tolerance));
+    }
+    SavePixelsToFile(pPixels, DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, L"barycentric.bmp");
 }
 
 // Resource structure for data-driven tests.
