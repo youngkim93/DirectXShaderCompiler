@@ -1386,7 +1386,7 @@ void CGMSHLSLRuntime::AddHLSLFunctionInfo(Function *F, const FunctionDecl *FD) {
   }
 
   DxilFunctionAnnotation *FuncAnnotation =
-      m_pHLModule->AddFunctionAnnotation(F);
+      m_pHLModule->AddFunctionAnnotationWithFPDenormMode(F, m_pHLModule->GetFPDenormMode());
   bool bDefaultRowMajor = m_pHLModule->GetHLOptions().bDefaultRowMajor;
 
   // Param Info
@@ -3855,7 +3855,7 @@ static void CloneShaderEntry(Function *ShaderF, StringRef EntryName,
 
   // Copy function annotation.
   DxilFunctionAnnotation *shaderAnnot = HLM.GetFunctionAnnotation(ShaderF);
-  DxilFunctionAnnotation *annot = HLM.AddFunctionAnnotation(F);
+  DxilFunctionAnnotation *annot = HLM.AddFunctionAnnotationWithFPDenormMode(F, HLM.GetFPDenormMode());
 
   DxilParameterAnnotation &retAnnot = shaderAnnot->GetRetTypeAnnotation();
   DxilParameterAnnotation &cloneRetAnnot = annot->GetRetTypeAnnotation();
