@@ -703,6 +703,8 @@ public:
   TEST_METHOD(CodeGenShortCircuiting1)
   TEST_METHOD(CodeGenShortCircuiting2)
   TEST_METHOD(CodeGenShortCircuiting3)
+  TEST_METHOD(CodeGenSignaturePackingPrefixStable)
+  TEST_METHOD(CodeGenSignaturePackingPrefixStable16Bit)
   TEST_METHOD(CodeGenSimpleDS1)
   TEST_METHOD(CodeGenSimpleGS1)
   TEST_METHOD(CodeGenSimpleGS2)
@@ -3964,6 +3966,14 @@ TEST_F(CompilerTest, CodeGenShortCircuiting2) {
 
 TEST_F(CompilerTest, CodeGenShortCircuiting3) {
   CodeGenTestCheck(L"..\\CodeGenHLSL\\short_circuiting3.hlsl");
+}
+
+TEST_F(CompilerTest, CodeGenSignaturePackingPrefixStable) {
+  CodeGenTest(L"..\\CodeGenHLSL\\signature_packing.hlsl");
+}
+
+TEST_F(CompilerTest, CodeGenSignaturePackingPrefixStable16Bit) {
+  CodeGenTest(L"..\\CodeGenHLSL\\signature_packing_16bit.hlsl");
 }
 
 TEST_F(CompilerTest, CodeGenSimpleDS1) {

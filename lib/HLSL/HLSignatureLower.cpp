@@ -361,7 +361,8 @@ void HLSignatureLower::ProcessArgument(Function *func,
       pSE->SetSigPointKind(sigPoint->GetKind());
       pSE->Initialize(semanticStr, EltTy, interpMode, rows, cols,
                       Semantic::kUndefinedRow, Semantic::kUndefinedCol,
-                      pSE->GetID(), paramAnnotation.GetSemanticIndexVec());
+                      pSE->GetID(), paramAnnotation.GetSemanticIndexVec(),
+                      HLM.GetHLOptions().bUseMinPrecision);
       m_sigValueMap[pSE] = &arg;
     }
   }

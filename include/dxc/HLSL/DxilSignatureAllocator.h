@@ -26,6 +26,7 @@ public:
     virtual DXIL::InterpolationMode GetInterpolationMode() const = 0;
     virtual DXIL::SemanticInterpretationKind GetInterpretation() const = 0;
     virtual DXIL::SignatureDataWidth GetDataWidth() const = 0;
+    virtual bool UseMinPrecision() const = 0;
     virtual uint32_t GetRows() const = 0;
     virtual uint32_t GetCols() const = 0;
     virtual bool IsAllocated() const = 0;
@@ -44,6 +45,7 @@ public:
     DXIL::InterpolationMode interpolation;
     DXIL::SemanticInterpretationKind interpretation;
     DXIL::SignatureDataWidth dataWidth;
+    bool useMinPrecision;
     uint32_t indexFlags;
 
   public:
@@ -52,6 +54,7 @@ public:
       interpolation(DXIL::InterpolationMode::Undefined),
       interpretation(DXIL::SemanticInterpretationKind::Arb),
       dataWidth(DXIL::SignatureDataWidth::UNDEFINED),
+      useMinPrecision(true),
       indexFlags(0)
     {}
     __override ~DummyElement() {}
@@ -60,6 +63,7 @@ public:
     __override DXIL::InterpolationMode GetInterpolationMode() const { return interpolation; }
     __override DXIL::SemanticInterpretationKind GetInterpretation() const { return interpretation; }
     __override DXIL::SignatureDataWidth GetDataWidth() const { return dataWidth; }
+    __override bool UseMinPrecision() const { return useMinPrecision; }
     __override uint32_t GetRows() const { return rows; }
     __override uint32_t GetCols() const { return cols; }
     __override bool IsAllocated() const { return row != (uint32_t)-1; }
@@ -104,24 +108,27 @@ public:
     kConflictFit,
     kConflictDataWidth,
   };
+  // maximum number of components per row.
+  // For historical reason, each row in DXIL contains 4 data members (128 bits containing 4 dwords).
+  static const uint8_t MaxNumComponentsPerRow = 4;
 
+  // packed register for dxil signature is of size 128 bits.
   struct PackedRegister {
     // Flags:
     // - for occupied components, they signify element flags
     // - for unoccupied components, they signify conflict flags
-    uint8_t Flags[4];
+    uint8_t Flags[MaxNumComponentsPerRow];
     DXIL::InterpolationMode Interp : 4;
     uint8_t IndexFlags : 2;
     uint8_t IndexingFixed : 1;
-    DXIL::SignatureDataWidth DataWidth; // length of each scalar type in bytes. (2 or 4 for now)
-
+    DXIL::SignatureDataWidth DataWidth; // length of each scalar type.
     PackedRegister();
-    ConflictType DetectRowConflict(uint8_t flags, uint8_t indexFlags, DXIL::InterpolationMode interp, unsigned width, DXIL::SignatureDataWidth dataWidth);
+    ConflictType DetectRowConflict(uint8_t flags, uint8_t indexFlags, DXIL::InterpolationMode interp, unsigned width, DXIL::SignatureDataWidth dataWidth, bool useMinPrecision);
     ConflictType DetectColConflict(uint8_t flags, unsigned col, unsigned width);
     void PlaceElement(uint8_t flags, uint8_t indexFlags, DXIL::InterpolationMode interp, unsigned col, unsigned width, DXIL::SignatureDataWidth dataWidth);
   };
 
-  DxilSignatureAllocator(unsigned numRegisters);
+  DxilSignatureAllocator(unsigned numRegisters, bool useMinPrecision);
 
   bool GetIgnoreIndexing() const { return m_bIgnoreIndexing; }
   void SetIgnoreIndexing(bool ignoreIndexing) { m_bIgnoreIndexing  = ignoreIndexing; }
@@ -144,6 +151,7 @@ public:
 protected:
   std::vector<PackedRegister> m_Registers;
   bool m_bIgnoreIndexing;
+  bool m_bUseMinPrecision;
 };
 
 

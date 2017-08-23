@@ -16,6 +16,7 @@
 #include "dxc/HLSL/DxilInterpolationMode.h"
 #include "dxc/HLSL/DxilCompType.h"
 #include "dxc/HLSL/DxilSignatureAllocator.h"
+#include "dxc/Support/Global.h"
 #include <string>
 #include <vector>
 
@@ -36,10 +37,10 @@ public:
   DxilSignatureElement(Kind K);
   virtual ~DxilSignatureElement();
 
-  void Initialize(llvm::StringRef Name, const CompType &ElementType, const InterpolationMode &InterpMode, 
+  void Initialize(llvm::StringRef Name, const CompType &ElementType, const InterpolationMode &InterpMode, bool useMinPrecision,
                   unsigned Rows, unsigned Cols, 
                   int StartRow = Semantic::kUndefinedRow, int StartCol = Semantic::kUndefinedCol,
-                  unsigned ID = kUndefinedID, const std::vector<unsigned> &IndexVector = std::vector<unsigned>(), bool useStrictPrecision);
+                  unsigned ID = kUndefinedID, const std::vector<unsigned> &IndexVector = std::vector<unsigned>());
 
   unsigned GetID() const;
   void SetID(unsigned ID);
@@ -61,6 +62,7 @@ public:
   CompType GetCompType() const;
   unsigned GetOutputStream() const;
   void SetOutputStream(unsigned Stream);
+  bool GetUseMinPrecision();
 
   // Semantic properties.
   const Semantic *GetSemantic() const;
@@ -98,7 +100,7 @@ protected:
   llvm::StringRef m_SemanticName;
   unsigned m_SemanticStartIndex;
   CompType m_CompType;
-  bool m_UseStrictPrecision;
+  bool m_UseMinPrecision;
   InterpolationMode m_InterpMode;
   std::vector<unsigned> m_SemanticIndex;
   unsigned m_Rows;
@@ -120,14 +122,15 @@ public:
   __override DXIL::SemanticInterpretationKind GetInterpretation() const { return m_pSE->GetInterpretation(); }
   __override DXIL::SignatureDataWidth GetDataWidth() const {
     uint8_t size = m_pSE->GetCompType().GetSize();
-    if (size == 16) {
+    if (size == 16 && !UseMinPrecision()) {
       return DXIL::SignatureDataWidth::SIXTEEN;
     }
-    else if (size == 32) {
+    else if (size == 16 || size == 32 || size == 1) { // boolean also maps to thirty two bits
       return DXIL::SignatureDataWidth::THIRTYTWO;
     }
-    return DXIL::SignatureDataWidth::UNDEFINED;
+    return DXIL::SignatureDataWidth::UNDEFINED; // invalid and double types cannot be part of signatures.
   }
+  __override bool UseMinPrecision() const { return m_pSE->GetUseMinPrecision(); }
   __override uint32_t GetRows() const { return m_pSE->GetRows(); }
   __override uint32_t GetCols() const { return m_pSE->GetCols(); }
   __override bool IsAllocated() const { return m_pSE->IsAllocated(); }

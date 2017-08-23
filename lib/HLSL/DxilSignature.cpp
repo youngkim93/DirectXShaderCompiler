@@ -23,7 +23,7 @@ namespace hlsl {
 //
 // Singnature methods.
 //
-DxilSignature::DxilSignature(DXIL::ShaderKind shaderKind, DXIL::SignatureKind sigKind)
+DxilSignature::DxilSignature(DXIL::ShaderKind shaderKind, DXIL::SignatureKind sigKind, bool useMinPrecision)
 : m_sigPointKind(SigPoint::GetKind(shaderKind, sigKind, /*isPatchConstantFunction*/false, /*isSpecialInput*/false)) {}
 
 DxilSignature::DxilSignature(DXIL::SigPointKind sigPointKind)
@@ -35,7 +35,7 @@ DxilSignature::DxilSignature(const DxilSignature &src)
   for (auto &Elt : src.GetElements()) {
     std::unique_ptr<DxilSignatureElement> newElt = CreateElement();
     newElt->Initialize(Elt->GetName(), Elt->GetCompType(),
-                       Elt->GetInterpolationMode()->GetKind(), Elt->GetRows(),
+                       Elt->GetInterpolationMode()->GetKind(), Elt->GetUseMinPrecision(), Elt->GetRows(),
                        Elt->GetCols(), Elt->GetStartRow(), Elt->GetStartCol(),
                        Elt->GetID(), Elt->GetSemanticIndexVec());
     AppendElement(std::move(newElt), bSetID);

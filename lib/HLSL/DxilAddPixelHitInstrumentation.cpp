@@ -101,7 +101,7 @@ bool DxilAddPixelHitInstrumentation::runOnModule(Module &M)
   // If not present, we add it.
   if ( SV_Position == InputElements.end() ) {
     auto SVPosition = std::make_unique<DxilSignatureElement>(DXIL::SigPointKind::PSIn);
-    SVPosition->Initialize("Position", hlsl::CompType::getF32(), hlsl::DXIL::InterpolationMode::Linear, 1, 4, 0, 0);
+    SVPosition->Initialize("Position", hlsl::CompType::getF32(), hlsl::DXIL::InterpolationMode::Linear, !DM.m_ShaderFlags.GetUseNativeLowPrecision(), 1, 4, 0, 0);
     SVPosition->AppendSemanticIndex(0);
     SVPosition->SetSigPointKind(DXIL::SigPointKind::PSIn);
     SVPosition->SetKind(hlsl::DXIL::SemanticKind::Position);

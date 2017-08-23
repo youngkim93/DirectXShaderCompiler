@@ -1498,10 +1498,10 @@ MDTuple *DxilModule::EmitDxilShaderProperties() {
   vector<Metadata *> MDVals;
 
   // DXIL shader flags.
-  uint64_t flag = m_ShaderFlags.GetShaderFlagsRaw();
-  if (flag != 0) {
+  uint64_t Flags = m_ShaderFlags.GetShaderFlagsRaw();
+  if (Flags != 0) {
     MDVals.emplace_back(m_pMDHelper->Uint32ToConstMD(DxilMDHelper::kDxilShaderFlagsTag));
-    MDVals.emplace_back(m_pMDHelper->Uint64ToConstMD(flag));
+    MDVals.emplace_back(m_pMDHelper->Uint64ToConstMD(Flags));
   }
 
   // Compute shader.

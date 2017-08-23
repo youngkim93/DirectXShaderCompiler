@@ -48,7 +48,7 @@ void DxilSignatureElement::Initialize(llvm::StringRef Name, const CompType &Elem
                                       const InterpolationMode &InterpMode, 
                                       unsigned Rows, unsigned Cols, 
                                       int StartRow, int StartCol,
-                                      unsigned ID, const vector<unsigned> &IndexVector, bool useStrictPrecision) {
+                                      unsigned ID, const vector<unsigned> &IndexVector, bool useMinPrecision) {
   DXASSERT(m_pSemantic == nullptr, "an instance should be initiazed only once");
 
   m_ID = ID;
@@ -66,7 +66,7 @@ void DxilSignatureElement::Initialize(llvm::StringRef Name, const CompType &Elem
   m_StartRow = StartRow;
   m_StartCol = StartCol;
   m_OutputStream = 0;
-  m_UseStrictPrecision = useStrictPrecision;
+  m_UseMinPrecision = useMinPrecision;
 }
 
 unsigned DxilSignatureElement::GetID() const {
@@ -140,6 +140,10 @@ DXIL::SigPointKind DxilSignatureElement::GetSigPointKind() const {
 
 void DxilSignatureElement::SetSigPointKind(DXIL::SigPointKind K) {
   m_sigPointKind = K;
+}
+
+bool DxilSignatureElement::GetUseMinPrecision() {
+  return m_UseMinPrecision;
 }
 
 

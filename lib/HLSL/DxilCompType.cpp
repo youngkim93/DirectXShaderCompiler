@@ -44,6 +44,7 @@ CompType::Kind CompType::GetKind() const {
 
 uint8_t CompType::GetSize() const {
   switch (m_Kind) {
+  case Kind::Invalid:   return 0;
   case Kind::I1:        return 1;
   case Kind::SNormF16:
   case Kind::UNormF16:
