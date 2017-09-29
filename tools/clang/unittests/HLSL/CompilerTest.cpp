@@ -738,6 +738,7 @@ public:
   TEST_METHOD(CodeGenStaticResource)
   TEST_METHOD(CodeGenStaticResource2)
   TEST_METHOD(CodeGenStruct_Buf1)
+  TEST_METHOD(CodeGenStruct_Buf_New_Layout)
   TEST_METHOD(CodeGenStruct_BufHasCounter)
   TEST_METHOD(CodeGenStruct_BufHasCounter2)
   TEST_METHOD(CodeGenStructArray)
@@ -813,6 +814,7 @@ public:
   TEST_METHOD(CodeGenTemplate_Checks_Mod)
   TEST_METHOD(CodeGenToinclude2_Mod)
   TEST_METHOD(CodeGenTypemods_Syntax_Mod)
+  TEST_METHOD(CodeGenTypedBufferHalf)
   TEST_METHOD(CodeGenVarmods_Syntax_Mod)
   TEST_METHOD(CodeGenVector_Assignments_Mod)
   TEST_METHOD(CodeGenVector_Syntax_Mix_Mod)
@@ -4109,6 +4111,10 @@ TEST_F(CompilerTest, CodeGenStruct_Buf1) {
   CodeGenTest(L"..\\CodeGenHLSL\\struct_buf1.hlsl");
 }
 
+TEST_F(CompilerTest, CodeGenStruct_Buf_New_Layout) {
+  CodeGenTestCheck(L"..\\CodeGenHLSL\\struct_buf_new_layout.hlsl");
+}
+
 TEST_F(CompilerTest, CodeGenStruct_BufHasCounter) {
   CodeGenTestCheck(L"..\\CodeGenHLSL\\struct_bufHasCounter.hlsl");
 }
@@ -4406,6 +4412,10 @@ TEST_F(CompilerTest, CodeGenToinclude2_Mod) {
 
 TEST_F(CompilerTest, CodeGenTypemods_Syntax_Mod) {
   CodeGenTest(L"..\\CodeGenHLSL\\typemods-syntax_Mod.hlsl");
+}
+
+TEST_F(CompilerTest, CodeGenTypedBufferHalf) {
+  CodeGenTestCheck(L"..\\CodeGenHLSL\\typed_buffer_half.hlsl");
 }
 
 TEST_F(CompilerTest, CodeGenVarmods_Syntax_Mod) {
