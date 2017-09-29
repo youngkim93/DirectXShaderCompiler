@@ -1,4 +1,4 @@
-// RUN: %dxc -E includedFunc2 -T ps_6_0 %s
+// RUN: %dxc -T ps_6_2 -no-min-precision %s
 
 // CHECK: call void @dx.op.bufferStore.f16
 
