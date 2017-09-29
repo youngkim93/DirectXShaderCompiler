@@ -2179,10 +2179,30 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   // HLSL Change Starts: change global variables that will be in constant buffer to be constant by default 
   // Global variables that are groupshared, static, or typedef 
   // will not be part of constant buffer and therefore should not be const by default.
+  
+  // get the scope of the declarator
+  bool CheckGlobalConst = true;
+  if (NestedNameSpecifier *nameSpecifier = D.getCXXScopeSpec().getScopeRep()) {
+    if (nameSpecifier->getKind() == NestedNameSpecifier::SpecifierKind::TypeSpec) {
+      const Type *type = D.getCXXScopeSpec().getScopeRep()->getAsType();
+      if (type->getTypeClass() == Type::TypeClass::Record) {
+        CXXRecordDecl *RD = type->getAsCXXRecordDecl();
+        for (auto it = RD->decls_begin(), itEnd = RD->decls_end(); it != itEnd; ++it) {
+          if (const VarDecl *VD = dyn_cast<VarDecl>(*it)) {
+            StringRef fieldName = VD->getName();
+            std::string declName = Actions.GetNameForDeclarator(D).getAsString();
+            if (fieldName.equals(declName) && VD->getStorageClass() == StorageClass::SC_Static) {
+              CheckGlobalConst = false;
+            }
+          }
+        }
+      }
+    }
+  }
   if (getLangOpts().HLSL && !D.isFunctionDeclarator() &&
       D.getContext() == Declarator::TheContext::FileContext &&
       DS.getStorageClassSpec() != DeclSpec::SCS::SCS_static &&
-      DS.getStorageClassSpec() != DeclSpec::SCS::SCS_typedef
+      DS.getStorageClassSpec() != DeclSpec::SCS::SCS_typedef && CheckGlobalConst
       ) {
 
     // Check whether or not there is a 'groupshared' attribute
