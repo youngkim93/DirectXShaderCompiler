@@ -4877,7 +4877,7 @@ Value *GenerateCBLoadLegacy(Value *handle, Value *legacyIdx,
   bool isNormal = !isBool && !is64;
   DXASSERT((is16 && channelOffset < 8) || channelOffset < 4,
            "legacy cbuffer don't across 16 bytes register.");
-  if (isNormal) {
+  if (isNormal || is16) {
     Function *CBLoad = hlslOP->GetOpFunc(OP::OpCode::CBufferLoadLegacy, EltTy);
     Value *loadLegacy = Builder.CreateCall(CBLoad, {OpArg, handle, legacyIdx});
     return Builder.CreateExtractValue(loadLegacy, channelOffset);

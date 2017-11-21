@@ -1925,8 +1925,7 @@ void DxilTranslateRawBuffer::ReplaceRawBufferLoad(Function *F,
 void DxilTranslateRawBuffer::ReplaceRawBufferStore(Function *F,
   Module &M) {
   OP *op = M.GetDxilModule().GetOP();
-  Type *RTy = F->getReturnType();
-  DXASSERT(RTy->isVoidTy(), "rawBufferStore should return a void type.");
+  DXASSERT(F->getReturnType()->isVoidTy(), "rawBufferStore should return a void type.");
   Type *ETy = F->getFunctionType()->getParamType(4); // value
   Function *newFunction = op->GetOpFunc(hlsl::DXIL::OpCode::BufferStore, ETy);
   for (auto U = F->user_begin(), E = F->user_end(); U != E;) {
@@ -1969,8 +1968,7 @@ void DxilTranslateRawBuffer::ReplaceMinPrecisionRawBufferLoad(Function *F,
 
 void DxilTranslateRawBuffer::ReplaceMinPrecisionRawBufferStore(Function *F,
                                                               Module &M) {
-  Type *RetTy = F->getReturnType();
-  DXASSERT(RetTy->isVoidTy(), "rawBufferStore should return a void type.");
+  DXASSERT(F->getReturnType()->isVoidTy(), "rawBufferStore should return a void type.");
   Type *ETy = F->getFunctionType()->getParamType(4); // value
   Type *NewETy;
   if (ETy->isHalfTy()) {
@@ -2011,9 +2009,10 @@ void DxilTranslateRawBuffer::ReplaceMinPrecisionRawBufferStore(Function *F,
       // size of the element at struct type and comp type at type annotation
       CallInst *handleCI = dyn_cast<CallInst>(CI->getArgOperand(1));
       DXASSERT(handleCI, "otherwise handle was not an argument to buffer store.");
-      ConstantInt *resClass = dyn_cast<ConstantInt>(handleCI->getArgOperand(1));
-      DXASSERT(resClass && resClass->getSExtValue() ==
-                               (unsigned)DXIL::ResourceClass::UAV,
+      DXASSERT(isa<ConstantInt>(handleCI->getArgOperand(1)) &&
+                   dyn_cast<ConstantInt>(handleCI->getArgOperand(1))
+                           ->getSExtValue() ==
+                       (unsigned)DXIL::ResourceClass::UAV,
                "otherwise buffer store called on non uav kind.");
       ConstantInt *rangeID = dyn_cast<ConstantInt>(handleCI->getArgOperand(2)); // range id or idx?
       DXASSERT(rangeID, "wrong createHandle call.");
