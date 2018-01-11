@@ -3648,6 +3648,24 @@ public:
     _In_ const HLSL_INTRINSIC *pIntrinsic,
     _In_ QualType objectElement);
 
+  bool IsMatchingIntrinsic(const HLSL_INTRINSIC *pIntrinsic, int compareValue, size_t argumentCount) {
+    return compareValue == 0 && pIntrinsic->uNumArgs == argumentCount + 1;
+  }
+
+  // Function to compare sorted intrinsic table, assuming that the table is sorted by IntrinsicOp and the number of arguments
+  int IntrinsicTableComparison(const HLSL_INTRINSIC *pIntrinsic,
+                               StringRef NameIdentifier, size_t argumentCount) {
+    int stringCompare =
+        NameIdentifier.compare(StringRef(pIntrinsic->pArgs[0].pName));
+    if (stringCompare == 0) {
+      return argumentCount + 1 == pIntrinsic->uNumArgs
+                 ? 0
+                 : argumentCount + 1 < pIntrinsic->uNumArgs ? -1 : 1;
+    }
+    return stringCompare;
+  }
+
+  // Returns the iterator that contains the first intrinsic that matches the name and the argument count.
   IntrinsicDefIter FindIntrinsicByNameAndArgCount(
     _In_count_(tableSize) const HLSL_INTRINSIC* table,
     size_t tableSize,
@@ -3655,7 +3673,8 @@ public:
     StringRef nameIdentifier,
     size_t argumentCount)
   {
-    // TODO: avoid linear scan
+#if 0
+    // Linear Search
     for (unsigned int i = 0; i < tableSize; i++) {
       const HLSL_INTRINSIC* pIntrinsic = &table[i];
 
@@ -3670,7 +3689,36 @@ public:
       return IntrinsicDefIter::CreateStart(table, tableSize, pIntrinsic,
         IntrinsicTableDefIter::CreateStart(m_intrinsicTables, typeName, nameIdentifier, argumentCount));
     }
-
+#endif
+    // Binary search with assumption that table is sorted in order by IntrinsicOp Values
+    int left = 0;
+    int right = tableSize - 1;
+    while (left <= right) {
+      int mid = (left + right) / 2;
+      const HLSL_INTRINSIC *pIntrinsic = &table[mid];
+      int comparison = IntrinsicTableComparison(pIntrinsic, nameIdentifier, argumentCount);
+      if (comparison == 0) {
+        // go to the first element in the table that matches intrinsic name and argument count.
+        int cur = mid;
+        while (cur - 1 > 0) {
+          const HLSL_INTRINSIC *pIntrinsicPrev = &table[cur - 1];
+          if (pIntrinsicPrev->uNumArgs == pIntrinsic->uNumArgs &&
+              StringRef(pIntrinsicPrev->pArgs[0].pName)
+                  .equals(StringRef(pIntrinsic->pArgs[0].pName))) {
+            pIntrinsic = pIntrinsicPrev;
+            --cur;
+            continue;
+          }
+          break;
+        }
+        return IntrinsicDefIter::CreateStart(table, tableSize, pIntrinsic,
+          IntrinsicTableDefIter::CreateStart(m_intrinsicTables, typeName, nameIdentifier, argumentCount));
+      }
+      else if (comparison == -1)
+        right = mid - 1;
+      else
+        left = mid + 1;
+    }
     return IntrinsicDefIter::CreateStart(table, tableSize, table + tableSize,
       IntrinsicTableDefIter::CreateStart(m_intrinsicTables, typeName, nameIdentifier, argumentCount));
   }
